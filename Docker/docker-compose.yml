@@ -1,0 +1,138 @@
+# 定义公共环境变量块（方便多个服务复用）
+x-app-env: &app-env
+  APP_NAME: "Epay"
+  # 应用环境变量，默认 production
+  APP_ENV: ${APP_ENV:-production}
+  # 应用访问 URL（生产中应改为实际域名）
+  APP_URL: ${APP_URL:-http://localhost}
+  # 数据库连接信息
+  DB_HOST: ${DB_HOST:-mysql}
+  DB_PORT: ${DB_PORT:-3306}
+  # Redis 连接信息
+  REDIS_HOST: ${REDIS_HOST:-redis}
+  REDIS_PORT: ${REDIS_PORT:-6379}
+  # -------------------------------
+  # PHP-FPM 应用容器（主业务服务）
+  # -------------------------------
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile
+    image: epay/php:8.2
+    restart: unless-stopped
+    depends_on:
+      - mysql
+      - redis
+    healthcheck:
+      test: ["CMD-SHELL", "SCRIPT_NAME=/ping SCRIPT_FILENAME=/ping REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    environment:
+      <<: *app-env
+      PHP_MEMORY_LIMIT: ${PHP_MEMORY_LIMIT:-256M}
+      PHP_UPLOAD_LIMIT: ${PHP_UPLOAD_LIMIT:-64M}
+    volumes:
+      - ..:/var/www/html:delegated
+      - ./php.ini:/usr/local/etc/php/conf.d/99-overrides.ini:ro
+    networks:
+      - backend
+  # -------------------------------
+  # Nginx 前端反向代理
+  # -------------------------------
+  nginx:
+    image: nginx:1.27
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+    volumes:
+      - ..:/var/www/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./logs/nginx:/var/log/nginx
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - backend
+  # -------------------------------
+  # MySQL 数据库
+  # -------------------------------
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-secret}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-epay}
+      MYSQL_USER: ${MYSQL_USER:-epay}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-epay}
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+  # -------------------------------
+  # Redis 缓存服务
+  # -------------------------------
+  redis:
+    image: redis:7.0-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ./data/redis:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+  # -------------------------------
+  # 定时任务调度容器（scheduler）
+  # -------------------------------
+  scheduler:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile
+      target: scheduler
+    image: epay/php-scheduler:8.2
+    depends_on:
+      - mysql
+      - redis
+    environment:
+      <<: *app-env
+    volumes:
+      - ..:/var/www/html:delegated
+      - ./php.ini:/usr/local/etc/php/conf.d/99-overrides.ini:ro
+    entrypoint: ["/usr/local/bin/entrypoint"]
+    command: ["php", "/var/www/html/cron.php"]
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "php -v >/dev/null"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+# ============================================
+# 网络定义
+# ============================================
+networks:
+  backend:
+    driver: bridge
