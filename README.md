@@ -1,5 +1,6 @@
 # Epay Docker Stack
    ```bash
+   cd /opt/Epaydocker
    cp Docker/env.example Docker/.env
    vi Docker/.env
    cd /opt/Epaydocker/Docker/
