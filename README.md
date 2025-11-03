@@ -2,7 +2,7 @@
    ```bash
    cd /opt/Epaydocker
    cp Docker/env.example Docker/.env
-   cd /opt/Epaydocker/Docker/
+   cd /opt/Epaydocker/Docker
    vi Docker/.env
    ```
 2. 初始化持久化目录（首次部署时执行）：
@@ -12,7 +12,7 @@
    ```
 3. 在 `Docker` 目录下启动：
    ```bash
-   cd Docker
+   cd /opt/Epaydocker/Docker
    docker compose up -d --build
    ```
 4. 通过浏览器访问 `http://<宿主机 IP>`，完成彩虹易支付的安装流程。
