@@ -2,8 +2,8 @@
    ```bash
    cd /opt/Epaydocker
    cp Docker/env.example Docker/.env
-   vi Docker/.env
    cd /opt/Epaydocker/Docker/
+   vi Docker/.env
    ```
 2. 初始化持久化目录（首次部署时执行）：
    ```bash
