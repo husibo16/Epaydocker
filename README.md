@@ -8,7 +8,6 @@
 2. 初始化持久化目录（首次部署时执行）：
    ```bash
    mkdir -p Docker/data/mysql Docker/data/redis Docker/logs/nginx
-   sudo chown -R 1000:1000 Docker/data Docker/logs || true
    ```
 3. 在 `Docker` 目录下启动：
    ```bash
