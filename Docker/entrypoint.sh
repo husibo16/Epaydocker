@@ -19,7 +19,7 @@ fi
 sanitize_timezone() {
   local tz="$1"
   tz="$(printf '%s' "${tz}" | tr -d '\r')"
-  tz="$(printf '%s' "${tz}" | awk '{\$1=\$1;print}')"
+  tz="$(printf '%s' "${tz}" | awk '{$1=$1;print}')"
   if [[ "${tz}" == \"*\" && "${tz: -1}" == '"' ]]; then
     tz="${tz:1:${#tz}-2}"
   elif [[ "${tz}" == "'*" && "${tz: -1}" == "'" ]]; then

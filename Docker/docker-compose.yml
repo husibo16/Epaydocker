@@ -57,7 +57,7 @@ services:
     depends_on:
       - web
     ports:
-      - "80:80"                         # 映射宿主机 80 端口
+      - "6001:80"                         # 映射宿主机 80 端口
     environment:
       TZ: ${TZ:-Asia/Shanghai}
     volumes:
