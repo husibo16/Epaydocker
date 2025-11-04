@@ -16,6 +16,17 @@ if [[ -n "${PHP_UPLOAD_LIMIT:-}" ]]; then
   } >> "${dynamic_ini}"
 fi
 
+timezone_value=""
+if [[ -n "${PHP_TIMEZONE:-}" ]]; then
+  timezone_value="${PHP_TIMEZONE}"
+elif [[ -n "${TZ:-}" ]]; then
+  timezone_value="${TZ}"
+fi
+
+if [[ -n "${timezone_value}" ]]; then
+  echo "date.timezone=${timezone_value}" >> "${dynamic_ini}"
+fi
+
 if [[ ! -s "${dynamic_ini}" ]]; then
   rm -f "${dynamic_ini}"
 fi
