@@ -29,11 +29,11 @@ Docker/
    cp Docker/env.example Docker/.env
    vi Docker/.env
    ```
-2. 初始化持久化目录（首次部署时执行）：
+2. 初始化持久化目录（首次部署时执行，可按需自定义宿主机路径）：
    ```bash
    mkdir -p Docker/data/mysql Docker/data/redis Docker/logs/nginx
-   sudo chown -R 1000:1000 Docker/data Docker/logs || true
    ```
+   Redis 持久化目录的权限会在启动时由自动化任务修正，无需手工 `chown`。
 3. 在 `Docker` 目录下启动：
    ```bash
    cd Docker
@@ -63,6 +63,7 @@ Docker/
 | `nginx`    | Nginx 1.27 反向代理，转发到 `web` 服务 | 80:80 | 共享项目目录、`nginx.conf`，日志输出到 `Docker/logs/nginx` |
 | `mysql`    | MySQL 8.0 数据库             | 3306:3306 | `Docker/data/mysql`（持久化数据） |
 | `redis`    | Redis 7.0 缓存与队列         | 6379:6379 | `Docker/data/redis` |
+| `redis-init` | BusyBox 一次性任务，启动前修正 Redis 数据目录权限 | - | `Docker/data/redis` |
 | `scheduler`| 与 `web` 同镜像的任务容器    | 无外部暴露 | 与 `web` 共用代码目录、环境变量 |
 
 ### 调度器任务
@@ -73,6 +74,7 @@ Docker/
 - `nginx`：本地 `curl` 请求站点根路径。
 - `mysql`：使用 `mysqladmin ping` 检测。
 - `redis`：执行 `redis-cli ping`。
+- `redis-init`：一次性任务，无健康检查；若权限修复失败会导致 `redis` 服务启动失败。
 - `scheduler`：健康状态与 `web` 相同，确保任务执行容器保持可用。
 
 `docker compose ps` / `docker inspect` 可实时查看健康状态，失败时自动重启，便于运维监控。

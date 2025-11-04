@@ -1,19 +1,12 @@
-# 定义公共环境变量块（方便多个服务复用）
 x-app-env: &app-env
   APP_NAME: "Epay"
-  # 应用环境变量，默认 production
   APP_ENV: ${APP_ENV:-production}
-  # 应用访问 URL（生产中应改为实际域名）
   APP_URL: ${APP_URL:-http://localhost}
-  # 数据库连接信息
   DB_HOST: ${DB_HOST:-mysql}
   DB_PORT: ${DB_PORT:-3306}
-  # Redis 连接信息
   REDIS_HOST: ${REDIS_HOST:-redis}
   REDIS_PORT: ${REDIS_PORT:-6379}
-  # -------------------------------
-  # PHP-FPM 应用容器（主业务服务）
-  # -------------------------------
+
 services:
   web:
     build:
@@ -39,9 +32,7 @@ services:
       - ./php.ini:/usr/local/etc/php/conf.d/99-overrides.ini:ro
     networks:
       - backend
-  # -------------------------------
-  # Nginx 前端反向代理
-  # -------------------------------
+
   nginx:
     image: nginx:1.27
     depends_on:
@@ -60,9 +51,7 @@ services:
       start_period: 10s
     networks:
       - backend
-  # -------------------------------
-  # MySQL 数据库
-  # -------------------------------
+
   mysql:
     image: mysql:8.0
     restart: unless-stopped
@@ -84,13 +73,14 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-  # -------------------------------
-  # Redis 缓存服务
-  # -------------------------------
+
   redis:
     image: redis:7.0-alpine
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
+    depends_on:
+      redis-init:
+        condition: service_completed_successfully
     volumes:
       - ./data/redis:/data
     ports:
@@ -103,9 +93,16 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-  # -------------------------------
-  # 定时任务调度容器（scheduler）
-  # -------------------------------
+
+  redis-init:
+    image: busybox:1.36
+    command: ["sh", "-c", "mkdir -p /data && chown -R 999:999 /data"]
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - backend
+    restart: "no"
+
   scheduler:
     build:
       context: ..
@@ -130,9 +127,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-# ============================================
-# 网络定义
-# ============================================
+
 networks:
   backend:
     driver: bridge
