@@ -52,7 +52,8 @@ Docker/
 | `REDIS_HOST` / `REDIS_PORT` | `redis` / `6379` | 缓存与队列服务连接信息，可切换到托管 Redis。 |
 | `PHP_MEMORY_LIMIT` | `256M` | PHP 内存限制，可根据业务场景调整。 |
 | `PHP_UPLOAD_LIMIT` | `64M` | 上传文件大小限制，对支付凭证等上传敏感。 |
-| `TZ` | `Asia/Shanghai` | 容器时区，影响日志与定时任务。 |
+| `TZ` | `Asia/Shanghai` | 容器时区，影响系统日志、计划任务及数据库默认时区。 |
+| `PHP_TIMEZONE` | 空 | 覆盖 PHP `date.timezone` 设置；为空时默认继承 `TZ`，否则保持镜像内置值。 |
 
 > **提示**：`Docker/.env` 会被 Compose 自动加载，应用代码内的 `.env` 需另外维护。
 
