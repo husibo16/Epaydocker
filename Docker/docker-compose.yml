@@ -2,10 +2,12 @@ x-app-env: &app-env
   APP_NAME: "Epay"
   APP_ENV: ${APP_ENV:-production}
   APP_URL: ${APP_URL:-http://localhost}
+  TZ: ${TZ:-Asia/Shanghai}
   DB_HOST: ${DB_HOST:-mysql}
   DB_PORT: ${DB_PORT:-3306}
   REDIS_HOST: ${REDIS_HOST:-redis}
   REDIS_PORT: ${REDIS_PORT:-6379}
+  PHP_TIMEZONE: ${PHP_TIMEZONE:-}
 
 services:
   web:
@@ -39,6 +41,8 @@ services:
       - web
     ports:
       - "80:80"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - ..:/var/www/html:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
@@ -61,6 +65,7 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-epay}
       MYSQL_USER: ${MYSQL_USER:-epay}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-epay}
+      TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - ./data/mysql:/var/lib/mysql
     ports:
@@ -81,6 +86,8 @@ services:
     depends_on:
       redis-init:
         condition: service_completed_successfully
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - ./data/redis:/data
     ports:
