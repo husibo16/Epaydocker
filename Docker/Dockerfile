@@ -42,6 +42,7 @@ RUN set -eux; \
         gd \
         intl \
         mbstring \
+        mysql \
         opcache \
         pcntl \
         pdo_mysql \
