@@ -1,53 +1,71 @@
+# -------------------------------
+# 🚀 Epay 项目 Docker Compose 配置文件
+# 结构说明：
+# - web: PHP 应用容器（运行代码）
+# - nginx: Web 服务器（反向代理到 web）
+# - mysql: 数据库
+# - redis: 缓存/队列
+# - scheduler: 定时任务容器
+# -------------------------------
+
 x-app-env: &app-env
-  APP_NAME: "Epay"
-  APP_ENV: ${APP_ENV:-production}
-  APP_URL: ${APP_URL:-http://localhost}
-  TZ: ${TZ:-Asia/Shanghai}
-  DB_HOST: ${DB_HOST:-mysql}
-  DB_PORT: ${DB_PORT:-3306}
-  REDIS_HOST: ${REDIS_HOST:-redis}
-  REDIS_PORT: ${REDIS_PORT:-6379}
-  PHP_TIMEZONE: ${PHP_TIMEZONE:-}
+  APP_NAME: "Epay"                      # 应用名称
+  APP_ENV: ${APP_ENV:-production}       # 应用运行环境，默认 production
+  APP_URL: ${APP_URL:-http://localhost} # 应用访问地址
+  TZ: ${TZ:-Asia/Shanghai}              # 系统时区（默认上海）
+  DB_HOST: ${DB_HOST:-mysql}            # 数据库主机名（容器间可直接用服务名通信）
+  DB_PORT: ${DB_PORT:-3306}             # 数据库端口
+  REDIS_HOST: ${REDIS_HOST:-redis}      # Redis 主机名
+  REDIS_PORT: ${REDIS_PORT:-6379}       # Redis 端口
+  PHP_TIMEZONE: ${PHP_TIMEZONE:-}       # PHP 时区（可覆盖 TZ）
 
 services:
+  # ----------------------------------
+  # PHP 应用容器（核心业务逻辑）
+  # ----------------------------------
   web:
     build:
-      context: ..
-      dockerfile: Docker/Dockerfile
-    image: epay/php:8.2
-    restart: unless-stopped
+      context: ..                       # 构建上下文，指向项目根目录
+      dockerfile: Docker/Dockerfile     # 指定 Dockerfile 路径
+    image: epay/php:8.2                 # 生成后的镜像名称
+    restart: unless-stopped             # 自动重启策略（除非手动停止）
     depends_on:
       - mysql
       - redis
-    healthcheck:
+    healthcheck:                        # 健康检查，检测 PHP-FPM 是否可用
       test: ["CMD-SHELL", "SCRIPT_NAME=/ping SCRIPT_FILENAME=/ping REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 10s
     environment:
-      <<: *app-env
-      PHP_MEMORY_LIMIT: ${PHP_MEMORY_LIMIT:-256M}
-      PHP_UPLOAD_LIMIT: ${PHP_UPLOAD_LIMIT:-64M}
+      <<: *app-env                      # 引入公共环境变量块
+      PHP_MEMORY_LIMIT: ${PHP_MEMORY_LIMIT:-256M}  # PHP 内存限制
+      PHP_UPLOAD_LIMIT: ${PHP_UPLOAD_LIMIT:-64M}   # PHP 上传限制
     volumes:
-      - ..:/var/www/html:delegated
-      - ./php.ini:/usr/local/etc/php/conf.d/99-overrides.ini:ro
+      - ..:/var/www/html:delegated      # 挂载源码目录（delegated 提升性能）
+      - ./php.ini:/usr/local/etc/php/conf.d/99-overrides.ini:ro  # 自定义 PHP 配置
     networks:
       - backend
 
+  # ----------------------------------
+  # Nginx 反向代理容器
+  # ----------------------------------
   nginx:
     image: nginx:1.27
+    restart: unless-stopped
     depends_on:
       - web
     ports:
-      - "80:80"
+      - "80:80"                         # 映射宿主机 80 端口
     environment:
       TZ: ${TZ:-Asia/Shanghai}
     volumes:
-      - ..:/var/www/html:ro
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./logs/nginx:/var/log/nginx
-    healthcheck:
+      - ..:/var/www/html:ro             # 挂载应用代码（只读）
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro  # 自定义 Nginx 配置
+      - ./nginx-entrypoint.d/10-listen-on-ipv6-by-default.sh:/docker-entrypoint.d/10-listen-on-ipv6-by-default.sh:ro
+      - ./logs/nginx:/var/log/nginx     # 挂载日志目录
+    healthcheck:                        # 检查配置语法是否正确
       test: ["CMD-SHELL", "nginx -t"]
       interval: 30s
       timeout: 5s
@@ -56,10 +74,16 @@ services:
     networks:
       - backend
 
+  # ----------------------------------
+  # MySQL 数据库容器
+  # ----------------------------------
   mysql:
     image: mysql:8.0
     restart: unless-stopped
-    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-secret}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-epay}
@@ -67,9 +91,9 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-epay}
       TZ: ${TZ:-Asia/Shanghai}
     volumes:
-      - ./data/mysql:/var/lib/mysql
+      - ./data/mysql:/var/lib/mysql     # 数据持久化目录
     ports:
-      - "3306:3306"
+      - "3306:3306"                     # 暴露 MySQL 端口（可选）
     networks:
       - backend
     healthcheck:
@@ -79,17 +103,23 @@ services:
       retries: 5
       start_period: 30s
 
+  # ----------------------------------
+  # Redis 缓存/队列容器
+  # ----------------------------------
   redis:
     image: redis:7.0-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
-    depends_on:
-      redis-init:
-        condition: service_completed_successfully
+    command:
+      - "sh"
+      - "-c"
+      - >-
+        chown -R redis:redis /data &&
+        mkdir -p /data/appendonlydir &&
+        exec redis-server --appendonly yes --dir /data --appenddirname appendonlydir
     environment:
       TZ: ${TZ:-Asia/Shanghai}
     volumes:
-      - ./data/redis:/data
+      - ./data/redis:/data              # 数据持久化目录
     ports:
       - "6379:6379"
     networks:
@@ -101,31 +131,25 @@ services:
       retries: 5
       start_period: 10s
 
-  redis-init:
-    image: busybox:1.36
-    command: ["sh", "-c", "mkdir -p /data && chown -R 999:999 /data"]
-    volumes:
-      - ./data/redis:/data
-    networks:
-      - backend
-    restart: "no"
-
+  # ----------------------------------
+  # Scheduler 定时任务容器（跑 Laravel/Symfony 等调度任务）
+  # ----------------------------------
   scheduler:
     build:
       context: ..
       dockerfile: Docker/Dockerfile
-      target: scheduler
+      target: scheduler                 # 使用 Dockerfile 中指定的阶段（multi-stage build）
     image: epay/php-scheduler:8.2
+    restart: unless-stopped
     depends_on:
       - mysql
       - redis
     environment:
       <<: *app-env
+      SCHEDULER_INTERVAL: ${SCHEDULER_INTERVAL:-60} # 调度间隔（秒）
     volumes:
       - ..:/var/www/html:delegated
       - ./php.ini:/usr/local/etc/php/conf.d/99-overrides.ini:ro
-    entrypoint: ["/usr/local/bin/entrypoint"]
-    command: ["php", "/var/www/html/cron.php"]
     networks:
       - backend
     healthcheck:
@@ -135,6 +159,9 @@ services:
       retries: 3
       start_period: 30s
 
+# ----------------------------------
+# 网络定义（所有服务共享 backend 网络）
+# ----------------------------------
 networks:
   backend:
     driver: bridge

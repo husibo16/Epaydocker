@@ -42,7 +42,6 @@ RUN set -eux; \
         gd \
         intl \
         mbstring \
-        mysqli \
         opcache \
         pcntl \
         pdo_mysql \
@@ -61,9 +60,10 @@ WORKDIR /var/www/html
 
 COPY Docker/php.ini /usr/local/etc/php/conf.d/99-overrides.ini
 COPY Docker/entrypoint.sh /usr/local/bin/entrypoint
+COPY Docker/scheduler.sh /usr/local/bin/run-scheduler
 COPY Docker/php-fpm-healthcheck.conf /usr/local/etc/php-fpm.d/zz-healthcheck.conf
 
-RUN chmod +x /usr/local/bin/entrypoint
+RUN chmod +x /usr/local/bin/entrypoint /usr/local/bin/run-scheduler
 
 ENV PHP_MEMORY_LIMIT=256M \
     PHP_UPLOAD_LIMIT=64M \
@@ -74,7 +74,7 @@ CMD ["php-fpm"]
 
 FROM base AS scheduler
 HEALTHCHECK NONE
-CMD ["php", "/var/www/html/cron.php"]
+CMD ["/usr/local/bin/run-scheduler"]
 
 FROM base
 HEALTHCHECK --interval=30s --timeout=5s --retries=5 --start-period=10s CMD SCRIPT_NAME=/ping SCRIPT_FILENAME=/ping REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 || exit 1
