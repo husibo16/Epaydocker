@@ -16,11 +16,44 @@ if [[ -n "${PHP_UPLOAD_LIMIT:-}" ]]; then
   } >> "${dynamic_ini}"
 fi
 
+sanitize_timezone() {
+  local tz="$1"
+  tz="$(printf '%s' "${tz}" | tr -d '\r')"
+  tz="$(printf '%s' "${tz}" | awk '{\$1=\$1;print}')"
+  if [[ "${tz}" == \"*\" && "${tz: -1}" == '"' ]]; then
+    tz="${tz:1:${#tz}-2}"
+  elif [[ "${tz}" == "'*" && "${tz: -1}" == "'" ]]; then
+    tz="${tz:1:${#tz}-2}"
+  fi
+  printf '%s' "${tz}"
+}
+
 timezone_value=""
-if [[ -n "${PHP_TIMEZONE:-}" ]]; then
-  timezone_value="${PHP_TIMEZONE}"
+
+attempt_timezone() {
+  local candidate="$1"
+  local label="$2"
+  local sanitized
+  sanitized="$(sanitize_timezone "${candidate}")"
+  if [[ -z "${sanitized}" ]]; then
+    return 1
+  fi
+  if [[ "${sanitized}" == \#* ]]; then
+    echo "[entrypoint] Ignoring ${label} value because it looks like a comment" >&2
+    return 1
+  fi
+  if TZ_CHECK="${sanitized}" php -r 'exit(in_array(getenv("TZ_CHECK"), DateTimeZone::listIdentifiers(), true) ? 0 : 1);' >/dev/null 2>&1; then
+    timezone_value="${sanitized}"
+    return 0
+  fi
+  echo "[entrypoint] Warning: invalid ${label} timezone '${sanitized}', falling back to default" >&2
+  return 1
+}
+
+if [[ -n "${PHP_TIMEZONE:-}" ]] && attempt_timezone "${PHP_TIMEZONE}" "PHP_TIMEZONE"; then
+  :
 elif [[ -n "${TZ:-}" ]]; then
-  timezone_value="${TZ}"
+  attempt_timezone "${TZ}" "TZ" || true
 fi
 
 if [[ -n "${timezone_value}" ]]; then
